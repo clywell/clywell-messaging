@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>Clywell.Core.Messaging.RabbitMq</AssemblyName>
+        <RootNamespace>Clywell.Core.Messaging.RabbitMq</RootNamespace>
+        <Description>RabbitMQ transport implementation for the Clywell Messaging outbox pattern.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Clywell.Core.Messaging\Clywell.Core.Messaging.csproj" />
+        <PackageReference Include="RabbitMQ.Client" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Options" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    </ItemGroup>
+
+</Project>

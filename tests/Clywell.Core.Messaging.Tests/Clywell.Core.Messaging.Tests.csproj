@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Clywell.Core.Messaging\Clywell.Core.Messaging.csproj" />
+        <ProjectReference
+            Include="..\..\src\Clywell.Core.Messaging.RabbitMq\Clywell.Core.Messaging.RabbitMq.csproj" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio" />
+        <PackageReference Include="Moq" />
+        <PackageReference Include="coverlet.collector" />
+    </ItemGroup>
+
+</Project>

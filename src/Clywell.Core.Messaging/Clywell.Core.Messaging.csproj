@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>Clywell.Core.Messaging</AssemblyName>
+        <RootNamespace>Clywell.Core.Messaging</RootNamespace>
+        <Description>Domain events, transactional outbox, and integration event abstractions for
+            Clywell services.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Clywell.Primitives" />
+        <PackageReference Include="Clywell.Core.Data.EntityFramework" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Options" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    </ItemGroup>
+
+</Project>

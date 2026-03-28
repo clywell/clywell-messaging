@@ -1,0 +1,45 @@
+<Project>
+    <PropertyGroup>
+        <!-- Language Version -->
+        <LangVersion>latest</LangVersion>
+        <TargetFramework>net10.0</TargetFramework>
+
+        <!-- Nullable Reference Types -->
+        <Nullable>enable</Nullable>
+
+        <!-- Implicit Usings -->
+        <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- Warnings as Errors -->
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <WarningsAsErrors />
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+        <!-- Code Analysis -->
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <AnalysisLevel>latest</AnalysisLevel>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <!-- Deterministic Builds -->
+        <Deterministic>true</Deterministic>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+        <!-- Package Metadata (override in individual projects) -->
+        <Authors>Clywell</Authors>
+        <Company>Clywell</Company>
+        <Copyright>© 2026 Clywell. All rights reserved.</Copyright>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <!-- Test Projects Configuration -->
+    <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+    </PropertyGroup>
+</Project>

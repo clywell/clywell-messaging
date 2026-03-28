@@ -1,0 +1,56 @@
+version: 2
+updates:
+  # Update NuGet packages
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 3
+    groups:
+      nuget-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps):"
+      include: "scope"
+    pull-request-branch-name:
+      separator: "/"
+    reviewers:
+      - "sodiqyekeen"
+    assignees:
+      - "sodiqyekeen"
+    labels:
+      - "dependencies"
+      - "automated"
+    allow:
+      - dependency-type: "all"
+    ignore:
+      # Ignore major versions to avoid breaking changes
+      - dependency-name: "Microsoft.*"
+        update-types: ["version-update:semver-major"]
+    rebase-strategy: "auto"
+
+  # Update GitHub Actions (monitors all workflow files)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci:"
+      include: "scope"
+    reviewers:
+      - "sodiqyekeen"
+    assignees:
+      - "sodiqyekeen"
+    labels:
+      - "dependencies"
+      - "automated"

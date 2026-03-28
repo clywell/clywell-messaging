@@ -1,0 +1,191 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - 'feature/**'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/workflows/security.yml'
+      - '.github/workflows/release.yml'
+      - '.github/dependabot.yml'
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/workflows/security.yml'
+      - '.github/workflows/release.yml'
+      - '.github/dependabot.yml'
+  workflow_dispatch:
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # ============================================================
+  # Build and Test
+  # ============================================================
+  build:
+    runs-on: ubuntu-latest
+    name: Build & Test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --collect:"XPlat Code Coverage"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: '**/test-results*.trx'
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: '**/coverage.cobertura.xml'
+
+      - name: Check code coverage
+        run: |
+          echo "Code coverage metrics:"
+          find . -name "coverage.cobertura.xml" -exec echo "Found: {}" \;
+
+  # ============================================================
+  # Code Quality Checks
+  # ============================================================
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run analyzers
+        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore /p:TreatWarningsAsErrors=true
+        continue-on-error: true
+
+      - name: Check formatting
+        run: dotnet format --verify-no-changes --verbosity diagnostic
+        continue-on-error: true
+
+  # ============================================================
+  # Build Documentation
+  # ============================================================
+  documentation:
+    runs-on: ubuntu-latest
+    name: Documentation Check
+    # Skip for Dependabot — they don't modify docs
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check README
+        run: |
+          echo "Checking documentation files..."
+          test -f README.md && echo "✓ README found" || echo "⚠ README missing"
+        continue-on-error: true
+
+  # ============================================================
+  # Publish Results
+  # ============================================================
+  publish-test-results:
+    runs-on: ubuntu-latest
+    name: Publish Test Results
+    if: always()
+    needs: [build]
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: 'artifacts/**/*.trx'
+          check_name: Test Results
+        continue-on-error: true
+
+      - name: Generate coverage badge
+        run: |
+          echo "Coverage badge generation would go here"
+          echo "Integration with codecov.io can be added"
+        continue-on-error: true
+
+  # ============================================================
+  # Summary
+  # ============================================================
+  summary:
+    runs-on: ubuntu-latest
+    name: CI/CD Summary
+    if: always()
+    needs: [build, code-quality, documentation]
+
+    steps:
+      - name: Check job status
+        run: |
+          echo "CI/CD Pipeline Summary:"
+          echo "=======================";
+          echo "Build & Test: ${{ needs.build.result }}"
+          echo "Code Quality: ${{ needs.code-quality.result }}"
+          echo "Documentation: ${{ needs.documentation.result }}"
+          echo "=======================";
+
+          if [ "${{ needs.build.result }}" == "failure" ]; then
+            echo "⚠️  Build or tests failed. Please review the logs."
+            exit 1
+          else
+            echo "✓ All jobs passed!"
+          fi

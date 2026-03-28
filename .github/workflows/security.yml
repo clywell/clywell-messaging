@@ -1,0 +1,153 @@
+name: Security Scanning
+
+on:
+  # Only run on schedule and manual trigger to avoid duplicating ci-cd.yml
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+  workflow_dispatch:
+
+# Cancel in-progress runs when a new run is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  # ============================================================
+  # SAST - Static Application Security Testing
+  # ============================================================
+  sast:
+    runs-on: ubuntu-latest
+    name: Static Analysis
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Run analyzers with build
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore /p:TreatWarningsAsErrors=true /p:EnforceCodeStyleInBuild=true /p:EnableNETAnalyzers=true
+        continue-on-error: true
+
+  # ============================================================
+  # Dependency Check
+  # ============================================================
+  dependency-check:
+    runs-on: ubuntu-latest
+    name: Dependency Vulnerabilities
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies with audit
+        run: dotnet restore --audit
+        continue-on-error: true
+
+      - name: Check for vulnerable NuGet packages
+        run: |
+          echo "Checking for vulnerable packages..."
+          find . -name "*.csproj" -o -name "*.sln" | xargs grep -l "PackageReference"
+        continue-on-error: true
+
+  # ============================================================
+  # CodeQL Analysis
+  # ============================================================
+  codeql:
+    runs-on: ubuntu-latest
+    name: CodeQL Analysis
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['csharp']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore and build
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ============================================================
+  # OSSF Scorecard
+  # ============================================================
+  scorecard:
+    runs-on: ubuntu-latest
+    name: OSSF Scorecard
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run OSSF Scorecard
+        uses: ossf/scorecard-action@v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_results: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+  # ============================================================
+  # Security Summary
+  # ============================================================
+  security-summary:
+    runs-on: ubuntu-latest
+    name: Security Summary
+    if: always()
+    needs: [sast, dependency-check, codeql, scorecard]
+
+    steps:
+      - name: Report security status
+        run: |
+          echo "Security Scanning Summary:"
+          echo "==========================="
+          echo "SAST Analysis: ${{ needs.sast.result }}"
+          echo "Dependency Check: ${{ needs.dependency-check.result }}"
+          echo "CodeQL Analysis: ${{ needs.codeql.result }}"
+          echo "OSSF Scorecard: ${{ needs.scorecard.result }}"

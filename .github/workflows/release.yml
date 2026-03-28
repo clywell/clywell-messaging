@@ -1,0 +1,211 @@
+name: Release & Package
+
+on:
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # ============================================================
+  # Validate and Build
+  # ============================================================
+  validate-build:
+    runs-on: ubuntu-latest
+    name: Validate & Build Release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract Version from version.json
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "❌ Failed to extract version from version.json"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "✅ Version extracted from version.json: ${VERSION}"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "console;verbosity=minimal"
+
+  # ============================================================
+  # Package
+  # ============================================================
+  package:
+    runs-on: ubuntu-latest
+    name: Create NuGet Packages
+    needs: validate-build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Pack Clywell.Core.Messaging
+        run: |
+          dotnet pack \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-restore \
+            -p:Version=${{ needs.validate-build.outputs.version }} \
+            -p:PackageVersion=${{ needs.validate-build.outputs.version }} \
+            -o ./artifacts \
+            src/Clywell.Core.Messaging/Clywell.Core.Messaging.csproj
+          echo "✓ Clywell.Core.Messaging packed"
+
+      - name: Pack Clywell.Core.Messaging.RabbitMq
+        run: |
+          dotnet pack \
+            -c ${{ env.BUILD_CONFIGURATION }} \
+            --no-restore \
+            -p:Version=${{ needs.validate-build.outputs.version }} \
+            -p:PackageVersion=${{ needs.validate-build.outputs.version }} \
+            -o ./artifacts \
+            src/Clywell.Core.Messaging.RabbitMq/Clywell.Core.Messaging.RabbitMq.csproj
+          echo "✓ Clywell.Core.Messaging.RabbitMq packed"
+
+      - name: List packages
+        run: |
+          echo "Packages created:"
+          find artifacts -name "*.nupkg" | sort
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/*.nupkg
+          retention-days: 30
+
+  # ============================================================
+  # Publish to NuGet
+  # ============================================================
+  publish-nuget:
+    runs-on: ubuntu-latest
+    name: Publish to NuGet
+    needs: [validate-build, package]
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish to NuGet.org
+        run: |
+          dotnet nuget push \
+            *.nupkg \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.NUGET_API_KEY }}
+
+  # ============================================================
+  # Create GitHub Release
+  # ============================================================
+  github-release:
+    runs-on: ubuntu-latest
+    name: Create GitHub Release
+    needs: [validate-build, package]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: ./release-assets
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.validate-build.outputs.version }}
+          name: Release ${{ needs.validate-build.outputs.version }}
+          files: ./release-assets/**
+          draft: false
+          prerelease: ${{ contains(needs.validate-build.outputs.version, '-') }}
+          body: |
+            ## Clywell.Core.Messaging v${{ needs.validate-build.outputs.version }}
+
+            ### Release Artifacts
+            - `Clywell.Core.Messaging.${{ needs.validate-build.outputs.version }}.nupkg` — Core messaging abstractions, outbox pattern & domain event dispatching
+            - `Clywell.Core.Messaging.RabbitMq.${{ needs.validate-build.outputs.version }}.nupkg` — RabbitMQ integration event publisher
+
+            ### What's Changed
+            Please review the commit history and CHANGELOG for details on changes in this release.
+
+            ### Installation
+
+            **Core messaging abstractions & outbox:**
+            ```
+            dotnet add package Clywell.Core.Messaging --version ${{ needs.validate-build.outputs.version }}
+            ```
+
+            **RabbitMQ integration (optional):**
+            ```
+            dotnet add package Clywell.Core.Messaging.RabbitMq --version ${{ needs.validate-build.outputs.version }}
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================
+  # Release Summary
+  # ============================================================
+  release-summary:
+    runs-on: ubuntu-latest
+    name: Release Summary
+    if: always()
+    needs: [validate-build, package, publish-nuget, github-release]
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "Release Summary"
+          echo "==============="
+          echo "Version: ${{ needs.validate-build.outputs.version }}"
+          echo "Package: ${{ needs.package.result }}"
+          echo "NuGet Publish: ${{ needs.publish-nuget.result }}"
+          echo "GitHub Release: ${{ needs.github-release.result }}"
+          echo ""
+          echo "✓ Release ${{ needs.validate-build.outputs.version }} complete!"

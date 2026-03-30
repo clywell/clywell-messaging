@@ -148,8 +148,10 @@ public sealed class RabbitMqConsumerHostedService(
             if (handlers.Count == 0)
             {
                 logger.LogWarning(
-                    "No handler registered for integration event '{EventType}'.",
+                    "No handler registered for integration event '{EventType}'. Nacking without requeue.",
                     messageType);
+                await _channel!.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false, cancellationToken);
+                return;
             }
 
             foreach (var handler in handlers)

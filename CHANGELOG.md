@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-30
+
+### Fixed
+
+#### `Clywell.Core.Messaging.RabbitMq`
+- `AddRabbitMqConsumer` now binds `RabbitMqOptions` from configuration automatically, so `RabbitMq__*` environment variables are resolved without requiring a separate `PostConfigure` call in the host.
+- Messages with no registered handler are now nacked without requeue (routed to the dead-letter exchange) instead of being silently acknowledged and lost.
+- Wrapped the `IConnection` factory in `Task.Run` to prevent potential deadlocks when there is an ambient `SynchronizationContext` at DI container build time.
+
 ## [1.0.0] - 2026-03-23
 
 Initial release of the Clywell.Core.Messaging package family, implementing the transactional outbox pattern and RabbitMQ transport for cross-service integration events.

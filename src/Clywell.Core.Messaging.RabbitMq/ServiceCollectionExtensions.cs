@@ -39,7 +39,8 @@ public static class ServiceCollectionExtensions
                 UserName = opt.Username,
                 Password = opt.Password,
             };
-            return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+            // Task.Run avoids potential deadlocks when there is an ambient SynchronizationContext.
+            return Task.Run(() => factory.CreateConnectionAsync()).GetAwaiter().GetResult();
         });
 
         services.AddScoped<IRabbitMqPublisher, RabbitMqPublisher>();
@@ -58,6 +59,9 @@ public static class ServiceCollectionExtensions
 
         if (configure is not null)
             optionsBuilder.Configure(configure);
+
+        services.AddOptions<RabbitMqOptions>()
+            .BindConfiguration(RabbitMqOptions.SectionName);
 
         // Register IConnectionFactory (used by consumer to create its own connection)
         services.AddSingleton<IConnectionFactory>(sp =>

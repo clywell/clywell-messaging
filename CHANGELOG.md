@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-30
+
+### Fixed
+
+#### `Clywell.Core.Messaging.RabbitMq`
+- `RabbitMqConsumerHostedService` now retries the connection with exponential backoff (5 s → 60 s cap) instead of throwing on startup, preventing a transient broker unavailability from crashing the host (previously `BackgroundServiceExceptionBehavior.StopHost` would terminate the process).
+
 ## [1.1.0] - 2026-03-30
 
 ### Fixed

@@ -28,6 +28,36 @@ public sealed class RabbitMqConsumerHostedService(
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var delay = TimeSpan.FromSeconds(5);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await ConnectAndConsumeAsync(stoppingToken);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _channel?.Dispose();
+                _channel = null;
+                _connection?.Dispose();
+                _connection = null;
+
+                logger.LogError(ex, "RabbitMQ consumer failed. Retrying in {Delay}.", delay);
+
+                await Task.Delay(delay, stoppingToken);
+                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
+            }
+        }
+    }
+
+    private async Task ConnectAndConsumeAsync(CancellationToken stoppingToken)
+    {
         _connection = await connectionFactory.CreateConnectionAsync(stoppingToken);
         _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 

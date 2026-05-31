@@ -20,12 +20,15 @@ internal sealed class DomainEventDispatcher(
     /// <inheritdoc />
     public async Task DispatchAsync(
         IReadOnlyList<IDomainEvent> domainEvents,
+
         CancellationToken cancellationToken = default)
     {
         foreach (var domainEvent in domainEvents)
         {
             if (registry.TryGetDispatch(domainEvent.GetType(), out var dispatch))
+            {
                 await dispatch(domainEvent, serviceProvider, cancellationToken);
+            }
         }
     }
 }
